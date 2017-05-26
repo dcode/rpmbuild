@@ -53,7 +53,7 @@ Source0:        https://www.bro.org/downloads/%{name}-%{version}.tar.gz
 Patch0:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/eaa0424012bcce69ce2efcaaa03066596b9d9664/install-symlink-old-cmake.patch
 Patch1:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/bc14d4ffa8c445abc8eedfd68053bee9fa9a08c1/cmake-2.6.patch
 Patch2:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/6e20e150aaef566a4ff8cb543146cbaf52dee8cb/bro-kafka-configurable-timestamps.patch
-
+Patch3:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/cfce4c29fbc729dd7c82f00a75b5ff87570adbc5/bro-findkernelheaders-hack.patch
 Requires:       bro-core = %{version}
 Requires:       broctl = %{version}
 Requires:       libbroccoli = %{version}
@@ -148,7 +148,8 @@ This is Bro Control
 Summary:	AF_PACKET input plugin for Bro
 Group:		Productivity/Networking/Diagnostic
 Requires:	bro-core = %{version}
-BuildRequires:	kernel-devel kernel-headers
+BuildRequires:	kernel-devel 
+BuildRequires:  kernel-headers
 
 %description -n bro-plugin-af_packet
 This plugin provides native AF_Packet support for Bro.
@@ -202,6 +203,7 @@ find ./ -name "ProhibitInSourceBuild.cmake" | xargs -I file sh -c 'cat /dev/null
 
 # Apply plugins patches
 %patch2 -p1
+%patch3 -p1
 
 %build
 ./configure --prefix=%{_prefix} --binary-package --disable-broker
