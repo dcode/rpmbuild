@@ -1,51 +1,11 @@
-#
-# spec file for package Bro
-#
-# Copyright (c) 1995-2014 The Regents of the University of California
-# through the Lawrence Berkeley National Laboratory and the
-# International Computer Science Institute. All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# (1) Redistributions of source code must retain the above copyright
-#     notice, this list of conditions and the following disclaimer.
-#
-# (2) Redistributions in binary form must reproduce the above copyright
-#     notice, this list of conditions and the following disclaimer in the
-#     documentation and/or other materials provided with the distribution.
-#
-# (3) Neither the name of the University of California, Lawrence Berkeley
-#     National Laboratory, U.S. Dept. of Energy, International Computer
-#     Science Institute, nor the names of contributors may be used to endorse
-#     or promote products derived from this software without specific prior
-#     written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#
-# Note that some files in the distribution may carry their own copyright
-# notices.
-
 # Conditionals
 %bcond_without afpacket
 %bcond_without kafka
-%bcond_with myricom
 
 Name:           bro
-Version:        2.5
+Version:        2.5.1
 Release:        1%{dist}
 Summary:        Bro is a powerful framework for network analysis and security monitoring
-Group:          Productivity/Networking/Diagnostic
 
 License:        BSD-3-Clause
 URL:            http://bro.org
@@ -53,7 +13,9 @@ Source0:        https://www.bro.org/downloads/%{name}-%{version}.tar.gz
 Patch0:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/eaa0424012bcce69ce2efcaaa03066596b9d9664/install-symlink-old-cmake.patch
 Patch1:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/bc14d4ffa8c445abc8eedfd68053bee9fa9a08c1/cmake-2.6.patch
 Patch2:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/6e20e150aaef566a4ff8cb543146cbaf52dee8cb/bro-kafka-configurable-timestamps.patch
-Patch3:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/cfce4c29fbc729dd7c82f00a75b5ff87570adbc5/bro-findkernelheaders-hack.patch
+Patch3:         https://gist.githubusercontent.com/dcode/5e58fed4df358983738244ade4d100e3/raw/a435afbcc1b71182e826358c32f9205cab71a8d2/bro-findkernelheaders-hack.patch
+Source1:        https://github.com/J-Gras/bro-af_packet-plugin/archive/master.tar.gz#/bro-plugin-afpacket-%{version}.tar.gz
+Source2:        https://github.com/JonZeolla/metron-bro-plugin-kafka/archive/master.tar.gz#/bro-plugin-kafka-%{version}.tar.gz
 Requires:       bro-core = %{version}
 Requires:       broctl = %{version}
 Requires:       libbroccoli = %{version}
@@ -67,10 +29,6 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %define _sysconfdir %{_prefix}/etc
 %define _libdir     %{_prefix}/lib
 %define _mandir     %{_prefix}/share/man
-
-%if %{with myricom}
-%define with_snf /opt/snf
-%endif
 
 %if 0%{?suse_version}
 %define __cmake /usr/bin/cmake
@@ -89,9 +47,40 @@ and open-science communities.
 
 %package -n bro-core
 Summary:        The core bro installation without broctl
-Group:          Productivity/Networking/Diagnostic
-BuildRequires:  flex bison cmake openssl-devel zlib-devel python-devel swig gcc-c++
+Requires:       bind-libs
+Requires:       GeoIP
+%ifnarch s390 s390x
+Requires:       gperftools
+%endif
+Requires:       jemalloc
+Requires:       libpcap
+%if 0%{?fedora} >= 26
+Requires:       compat-openssl10
+%else
+Requires:       openssl
+%endif
+Requires:       zlib
+
+BuildRequires:  bind-devel
+BuildRequires:  bison
+BuildRequires:  cmake
+BuildRequires:  flex
+BuildRequires:  GeoIP-devel
+BuildRequires:  gcc-c++
+%ifnarch s390 s390x
+BuildRequires:  gperftools-devel
+%endif
+BuildRequires:  jemalloc-devel
 BuildRequires:  libpcap-devel
+%if 0%{?fedora} >= 26
+BuildRequires:  compat-openssl10-devel
+%else
+BuildRequires:  openssl-devel
+%endif
+BuildRequires:  python2-devel
+BuildRequires:  python-tools
+BuildRequires:  swig
+BuildRequires:  zlib-devel
 
 %description -n bro-core
 Bro is a powerful network analysis framework that is much different from the
@@ -106,47 +95,61 @@ and open-science communities.
 
 %package -n libbroccoli
 Summary:        Broccoli library
-Group:          System/Libraries
 
 %description -n libbroccoli
 The broccoli library
 
 %package -n libbroccoli-devel
 Summary:        Development files for broccoli
-Group:          Development/Libraries/C and C++
-Requires:       libbroccoli = %{version}
+Requires:       libbroccoli = %{version}-%{release}
+Requires:       pkgconfig
 
 %description -n libbroccoli-devel
 Eat more Broccoli!
 
-%package -n python-broccoli
+%package -n python2-broccoli
 Summary:        Python bindings for libbroccoli
-Group:          System/Libraries
-
 BuildRequires:  python2-devel
-Requires:       libbroccoli = %{version}
+Requires:       libbroccoli = %{version}-%{release}
+Provides:       python-broccoli
 
-%description -n python-broccoli
+
+%description -n python2-broccoli
 Provides Python bindings for libbroccoli
 
 %package -n broctl
 Summary:        Bro Control
-Group:          Productivity/Networking/Diagnostic
-Requires:       python
-Requires:       libbroccoli = %{version}
-Requires:       python-broccoli = %{version}
-Requires:       bro-core = %{version}
-%if 0%{?suse_version}
-Requires:       python-curses
-%endif
+BuildRequires:  python-devel
+BuildRequires:  systemd
+Requires:       python2
+Requires:       bash
+Requires:       libbroccoli = %{version}-%{release}
+Requires:       python2-broccoli = %{version}-%{release}
+Requires:       bro-core = %{version}-%{release}
+#Requires:      pysubnettree
+#Requires:      trace-summary
+#Requires:      capstats
+Requires(post):   systemd
+Requires(preun):  systemd
+Requires(postun): systemd
 
 %description -n broctl
 This is Bro Control
 
+#%package doc
+#Summary:          Documentation for bro
+#
+#BuildRequires:    python-sphinx
+#BuildRequires:    doxygen
+#BuildRequires:    rsync
+#
+#%description doc
+#This package contains the documentation for bro.
+
+###################### Begin Bro Plugins ##############################
 %if %{with afpacket}
 %package -n bro-plugin-af_packet
 Summary:	AF_PACKET input plugin for Bro
-Group:		Productivity/Networking/Diagnostic
 Requires:	bro-core = %{version}
 BuildRequires:	kernel-devel 
 BuildRequires:  kernel-headers
@@ -158,7 +161,6 @@ This plugin provides native AF_Packet support for Bro.
 %if %{with kafka}
 %package -n bro-plugin-kafka
 Summary:	Kafka logging plugin for Bro
-Group:		Productivity/Networking/Diagnostic
 Requires:	bro-core = %{version} librdkafka1 
 BuildRequires:	librdkafka-devel
 
@@ -166,16 +168,102 @@ BuildRequires:	librdkafka-devel
 This plugin provides native Kafka logging support for Bro.
 %endif
 
-%if %{with myricom}
-%package -n bro-plugin-myricom
-Summary:	Myricom input plugin for Bro
-Group:		Productivity/Networking/Diagnostic
-Requires:	bro-core = %{version} myri_snf
-BuildRequires:	kernel-devel kernel-headers myri_snf
+###################### End Bro Plugins ################################
 
-%description -n bro-plugin-myricom
-This plugin provides native Myricom support for Bro.
+%prep
+%setup -n bro-%{version} -q
+# some platforms do in-source builds when using cmake. I don't really care, so just patch the error out.
+find ./ -name "ProhibitInSourceBuild.cmake" | xargs -I file sh -c 'cat /dev/null > "file"'
+%patch0 -p0
+%if 0%{?centos_version} == 600 || 0%{?scientificlinux_version} == 600 || 0%{?rhel_version} == 505
+%patch1 -p0
 %endif
+
+%if %{with afpacket}
+rm -rf aux/plugins/af_packet
+mkdir -p aux/plugins/af_packet
+pushd aux/plugins/af_packet
+gzip -dc %{_sourcedir}/bro-plugin-afpacket-%{version}.tar.gz | tar -xvvf - --strip-components=1
+popd
+%endif
+
+%if %{with kafka}
+rm -rf aux/plugins/kafka
+mkdir -p aux/plugins/kafka
+pushd aux/plugins/kafka
+gzip -dc %{_sourcedir}/bro-plugin-kafka-%{version}.tar.gz | tar -xvvf - --strip-components=1
+popd
+%endif
+
+# Apply plugins patches
+#%patch2 -p1
+%patch3 -p1
+
+%build
+./configure \
+   --prefix=%{_prefix} \
+   --enable-debug \
+   --enable-mobile-ipv6 \
+   --disable-broker
+#   --libdir=%{_libdir} \
+#   --conf-files-dir=%{_sysconfdir}/bro \
+#   --python-install-dir=%{python2_sitelib} 
+ 
+make %{?_smp_mflags}
+
+%if %{with afpacket}
+# Build af_packet plugin
+pushd aux/plugins/af_packet
+./configure  --install-root=%{buildroot}/%{_libdir}/bro/plugins
+make %{?_smp_mflags}
+popd
+%endif
+
+%if %{with kafka}
+## Build kafka plugin
+pushd aux/plugins/kafka
+./configure --install-root=%{buildroot}/%{_libdir}/bro/plugins
+make %{?_smp_mflags}
+popd
+%endif
+
+%install
+make install DESTDIR=%{buildroot} INSTALL="install -p"
+
+# Install some aux tools
+%{__install} -m 755 ./build/aux/bro-aux/adtrace/adtrace %{buildroot}/%{_prefix}/bin/
+%{__install} -m 755 ./build/aux/bro-aux/rst/rst %{buildroot}/%{_prefix}/bin/
+
+############# Install plugins #################
+%if %{with afpacket}
+# af_packet
+pushd aux/plugins/af_packet
+make install INSTALL="install -p" #DESTDIR=%{buildroot} 
+popd
+%endif
+
+%if %{with kafka}
+# kafka plugin
+pushd aux/plugins/kafka
+make install INSTALL="install -p" #DESTDIR=%{buildroot} 
+popd
+%endif
+
+# Create spool dir
+%{__install} -d -m 755 %{buildroot}%{_localstatedir}/spool/
+%{__install} -d -m 755 %{buildroot}%{_localstatedir}/spool/tmp
+touch %{?buildroot}/%{_prefix}/spool/broctl-config.sh
+
+
+# Create logs dir
+%{__install} -d -m 755 %{buildroot}%{_localstatedir}/logs
+
+touch %{?buildroot}/%{_prefix}/spool/broctl-config.sh
+
+# Remove devel, junk, and zero length files
+find "%{buildroot}%{_prefix}" -iname "*.la" -delete;
+find "%{buildroot}" -iname "*.log" -delete;
+rm -rf %{buildroot}%{_includedir}/binpac.h.in
 
 %pre
 /usr/bin/getent group bro >/dev/null || /usr/sbin/groupadd -r bro
@@ -192,87 +280,31 @@ This plugin provides native Myricom support for Bro.
 %pre -n libbroccoli-devel
 /usr/bin/getent group bro >/dev/null || /usr/sbin/groupadd -r bro
 
-%prep
-%setup -n bro-%{version} -q
-# some platforms do in-source builds when using cmake. I don't really care, so just patch the error out.
-find ./ -name "ProhibitInSourceBuild.cmake" | xargs -I file sh -c 'cat /dev/null > "file"'
-%patch0 -p0
-%if 0%{?centos_version} == 600 || 0%{?scientificlinux_version} == 600 || 0%{?rhel_version} == 505
-%patch1 -p0
-%endif
+%post
+/sbin/ldconfig
+%systemd_post bro.service
 
-# Apply plugins patches
-%patch2 -p1
-%patch3 -p1
+%preun
+%systemd_preun bro.service
 
-%build
-./configure --prefix=%{_prefix} --binary-package --disable-broker
-make %{?_smp_mflags}
+%postun
+%systemd_postun bro.service
 
-%if %{with afpacket}
-# Build af_packet plugin
-pushd aux/plugins/af_packet
-./configure  --install-root=%{buildroot}%{_libdir}/bro/plugins
-make %{?_smp_mflags}
-popd
-%endif
+%postin -n libbroccoli
+/sbin/ldconfig
 
-%if %{with kafka}
-## Build kafka plugin
-pushd aux/plugins/kafka
-./configure --install-root=%{buildroot}%{_libdir}/bro/plugins
-make %{?_smp_mflags}
-popd
-%endif
+%postin -n libbroccoli-devel
+/sbin/ldconfig
 
-%if %{with myricom}
-# Build myricom plugin
-pushd aux/plugins/myricom
-./configure --install-root=%{buildroot}%{_libdir}/bro/plugins --with-myricom=%{with_snf}
-make %{?_smp_mflags}
-popd
-%endif
+%postun -n libbroccoli
+/sbin/ldconfig
 
-%install
-rm -rf $RPM_BUILD_ROOT
-%if %{defined rhel_version}
-make install DESTDIR=$RPM_BUILD_ROOT
+%postun -n libbroccoli-devel
+/sbin/ldconfig
 
-%else
-%make_install
-
-%endif
-
-%if %{with afpacket}
-# af_packet
-pushd aux/plugins/af_packet
-make install 
-popd
-%endif
-
-%if %{with kafka}
-# kafka plugin
-pushd aux/plugins/kafka
-make install
-popd
-%endif
-
-%if %{with myricom}
-## myricom plugin
-pushd aux/plugins/myricom
-make install
-popd
-%endif
-
-mkdir -p %{?buildroot}/%{_prefix}/spool/tmp
-mkdir -p %{?buildroot}/%{_prefix}/logs
-touch %{?buildroot}/%{_prefix}/spool/broctl-config.sh
-
-%post -n libbroccoli -p /sbin/ldconfig
-
-%postun -n libbroccoli -p /sbin/ldconfig
 
 %files
+%doc CHANGES COPYING NEWS README VERSION
 
 %files -n bro-core
 %defattr(-,root,bro,0755)
@@ -325,12 +357,13 @@ touch %{?buildroot}/%{_prefix}/spool/broctl-config.sh
 %{_mandir}/man1/trace-summary.1
 %defattr(0664,root,bro,2775)
 %dir %{_sysconfdir}
-%config %{_sysconfdir}/broctl.cfg
-%config %{_sysconfdir}/networks.cfg
-%config %{_sysconfdir}/node.cfg
+%config(noreplace) %{_sysconfdir}/broctl.cfg
+%config(noreplace) %{_sysconfdir}/networks.cfg
+%config(noreplace) %{_sysconfdir}/node.cfg
 %defattr(0664,root,bro,2770)
-%{_prefix}/spool
-%{_prefix}/logs
+%dir %{_prefix}/spool
+%{_prefix}/spool/broctl-config.sh
+%dir %{_prefix}/logs
 
 %files -n libbroccoli
 %defattr(-,root,bro,0755)
@@ -352,14 +385,23 @@ touch %{?buildroot}/%{_prefix}/spool/broctl-config.sh
 %{_libdir}/libbroccoli.so
 %{_libdir}/libbroccoli.a
 
+%files -n python2-broccoli
+%{_libdir}/broctl/broccoli_intern.py*
+%{_libdir}/broctl/_broccoli_intern.so
+%{_libdir}/broctl/broccoli.py*
+
+
 %if %{with afpacket}
 %files -n bro-plugin-af_packet
 %defattr(-,root,bro,0755)
 %dir %{_libdir}/bro/plugins/Bro_AF_Packet
+%dir %{_libdir}/bro/plugins/Bro_AF_Packet/broctl
 %dir %{_libdir}/bro/plugins/Bro_AF_Packet/lib
 %dir %{_libdir}/bro/plugins/Bro_AF_Packet/lib/bif
 %dir %{_libdir}/bro/plugins/Bro_AF_Packet/scripts
+
 %{_libdir}/bro/plugins/Bro_AF_Packet/__bro_plugin__
+%{_libdir}/bro/plugins/Bro_AF_Packet/broctl/*
 %{_libdir}/bro/plugins/Bro_AF_Packet/lib/*.so
 %{_libdir}/bro/plugins/Bro_AF_Packet/lib/bif/*.bro
 %{_libdir}/bro/plugins/Bro_AF_Packet/scripts/*.bro
@@ -368,48 +410,40 @@ touch %{?buildroot}/%{_prefix}/spool/broctl-config.sh
 %if %{with kafka}
 %files -n bro-plugin-kafka
 %defattr(-,root,bro,0755)
-%dir %{_libdir}/bro/plugins/Bro_Kafka
-%dir %{_libdir}/bro/plugins/Bro_Kafka/lib
-%dir %{_libdir}/bro/plugins/Bro_Kafka/lib/bif
-%dir %{_libdir}/bro/plugins/Bro_Kafka/scripts
-%dir %{_libdir}/bro/plugins/Bro_Kafka/scripts/Bro
-%dir %{_libdir}/bro/plugins/Bro_Kafka/scripts/Bro/Kafka
-# TODO: These should be %doc
-%{_libdir}/bro/plugins/Bro_Kafka/CHANGES
-%{_libdir}/bro/plugins/Bro_Kafka/COPYING
-%{_libdir}/bro/plugins/Bro_Kafka/README
-%{_libdir}/bro/plugins/Bro_Kafka/VERSION
-%{_libdir}/bro/plugins/Bro_Kafka/__bro_plugin__
-%{_libdir}/bro/plugins/Bro_Kafka/lib/*.so
-%{_libdir}/bro/plugins/Bro_Kafka/lib/bif/*.bro
-%{_libdir}/bro/plugins/Bro_Kafka/scripts/*.bro
-%{_libdir}/bro/plugins/Bro_Kafka/scripts/Bro/Kafka/*.bro
+%dir %{_libdir}/bro/plugins/APACHE_KAFKA
+%dir %{_libdir}/bro/plugins/APACHE_KAFKA/lib
+%dir %{_libdir}/bro/plugins/APACHE_KAFKA/lib/bif
+%dir %{_libdir}/bro/plugins/APACHE_KAFKA/scripts
+%dir %{_libdir}/bro/plugins/APACHE_KAFKA/scripts/Apache
+%dir %{_libdir}/bro/plugins/APACHE_KAFKA/scripts/Apache/Kafka
+%dir %{_libdir}/bro/plugins/APACHE_KAFKA/scripts/Bro
+%dir %{_libdir}/bro/plugins/APACHE_KAFKA/scripts/Bro/Kafka
+
+%{_libdir}/bro/plugins/APACHE_KAFKA/CHANGES
+%{_libdir}/bro/plugins/APACHE_KAFKA/COPYING
+%{_libdir}/bro/plugins/APACHE_KAFKA/VERSION
+%{_libdir}/bro/plugins/APACHE_KAFKA/__bro_plugin__
+%{_libdir}/bro/plugins/APACHE_KAFKA/lib/*.so
+%{_libdir}/bro/plugins/APACHE_KAFKA/lib/bif/*.bro
+%{_libdir}/bro/plugins/APACHE_KAFKA/scripts/*.bro
+%{_libdir}/bro/plugins/APACHE_KAFKA/scripts/Apache/Kafka/*.bro
+%{_libdir}/bro/plugins/APACHE_KAFKA/scripts/Bro/Kafka/*.bro
 
 %endif
 
-%if %{with myricom}
-%files -n bro-plugin-myricom
-%defattr(-,root,bro,0755)
-%dir %{_libdir}/bro/plugins/Bro_Myricom
-%dir %{_libdir}/bro/plugins/Bro_Myricom/lib
-%dir %{_libdir}/bro/plugins/Bro_Myricom/lib/bif
-%dir %{_libdir}/bro/plugins/Bro_Myricom/scripts
-%{_libdir}/bro/plugins/Bro_Myricom/__bro_plugin__
-%{_libdir}/bro/plugins/Bro_Myricom/lib/*.so
-%{_libdir}/bro/plugins/Bro_Myricom/lib/bif/*.bro
-%{_libdir}/bro/plugins/Bro_Myricom/scripts/*.bro
-%{_libdir}/bro/plugins/Bro_Myricom/broctl/myricom.py
-%{_libdir}/bro/plugins/Bro_Myricom/broctl/myricom.pyc
-%{_libdir}/bro/plugins/Bro_Myricom/broctl/myricom.pyo
-%endif
-
-%doc CHANGES COPYING NEWS README VERSION
 
 %changelog
+* Mon Sep 25 2017 Derek Ditch <derek@rocknsm.io> 2.5.1-1
+- Updated to upstream 2.5.1
+- Updated to upstream plugin packages for Kafka and AF_Packet
+- Fixed issue where building AF_Packet plugin couldn't find kernel headers
+- Fixed compilation on Fedora 26 w/ openssl compat libs
+
 * Mon Feb 09 2015 Johanna Amann <build@xxon.net> 2.4-680
-Nightly build version specification
+- Nightly build version specification
+
 * Wed Jan 28 2015 Johanna Amann <build@xxon.net> 2.3.2
-Update to Bro 2.3.2
+- Update to Bro 2.3.2
+
 * Wed Oct 29 2014 Johanna Amann <build@xxon.net> 2.3.1
-Initial version
--
+- Initial version

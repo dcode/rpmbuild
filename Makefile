@@ -16,15 +16,23 @@ rpm:   $(addprefix RPMS/,$(RPM_TARGETS))
 srpm:  $(addprefix SRPMS/,$(SRPM_TARGETS))
 specs: $(addprefix SPECS/,$(SPEC_TARGETS))
 
+%: srpm/%
+	make RPMS/$(shell rpmspec -P --define='dist $(DIST)' SPECS/$(<F).spec | awk '/^Name:/{name=$$2}; /^Version:/{version=$$2}; /^Release:/{release=$$2}; END { print name"-"version"-"release".$(ARCH).rpm"}')
+
+srpm/%:	SPECS/%.spec 
+	make SRPMS/$(shell rpmspec -P --define='dist $(DIST)' $< | awk '/^Name:/{name=$$2}; /^Version:/{version=$$2}; /^Release:/{release=$$2}; END { print name"-"version"-"release".src.rpm"}')
+
 #$(NAME)-$(VERSION)-$(RELEASE)$(DIST).src.rpm
 
 .SECONDEXPANSION:
-SRPMS/%.src.rpm: SPECS/$$(firstword $$(subst -, ,%)).spec
-	spectool -g -C SOURCES $<
-	rpmbuild -bs --nodeps $<
+SRPMS/%.src.rpm:
+	make SPECS/$(shell echo $@ | sed -E 's/^SRPMS\///; s/\-[0-9]+(\.[0-9]*)?(\.[0-9]*)?-[0-9]+.*\.centos\.src\.rpm//').spec
+	@spectool -g -C SOURCES SPECS/$(shell echo $@ | sed -E 's/^SRPMS\///; s/\-[0-9]+(\.[0-9]*)?(\.[0-9]*)?-[0-9]+.*\.centos\.src\.rpm//').spec
+	@mock -r ./rock-7-x86_64.cfg --buildsrpm --resultdir=$(PWD)/SRPMS  --source=$(PWD)/SOURCES --spec=SPECS/$(shell echo $@ | sed -E 's/^SRPMS\///; s/\-[0-9]+(\.[0-9]*)?(\.[0-9]*)?-[0-9]+.*\.centos\.src\.rpm//').spec
 
 RPMS/%.x86_64.rpm: SRPMS/%.src.rpm 
-	@mock -r ./rock-7-x86_64.cfg --resultdir=$(PWD)/RPMS $<
+	@mock -r ./rock-7-x86_64.cfg --no-clean --no-cleanup-after --resultdir=$(PWD)/RPMS $<
+	rm RPMS/$(<F)
 
 copr_submit:
 	curl -XPOST \
@@ -34,3 +42,4 @@ copr_submit:
 
 clean:
 	rm -rf SOURCES/$(SOURCE) ./tmp/ RPMS 
+	@mock -r ./rock-7-x86_64.cfg clean
